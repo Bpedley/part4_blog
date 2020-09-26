@@ -1,4 +1,5 @@
 const Blog = require("../models/blog");
+const User = require("../models/user");
 
 const initialBlogs = [
   {
@@ -14,11 +15,18 @@ const initialBlogs = [
   }
 ];
 
+const validBlog = {
+  url: "https://github.com/atkinsio/full-stack-open-2020",
+  title: "How to be a fullstack master",
+  author: "Aaron Atkins"
+};
+
 const nonExistingId = async () => {
   const blog = new Blog({
+    url: "www.ya.ru",
     title: "Test blog post",
     author: "Egor Kuchin",
-    url: "www.ya.ru"
+    likes: 0
   });
 
   await blog.save();
@@ -32,6 +40,15 @@ const blogsInDb = async () => {
   return blogs.map(blog => blog.toJSON());
 };
 
+const usersInDb = async () => {
+  const users = await User.find({});
+  return users.map(user => user.toJSON());
+};
+
 module.exports = {
-  initialBlogs, nonExistingId, blogsInDb
+  initialBlogs,
+  validBlog,
+  nonExistingId,
+  blogsInDb,
+  usersInDb
 };

@@ -6,11 +6,19 @@ const api = supertest(app);
 
 const Blog = require("../models/blog");
 
+let token;
+
 beforeEach(async () => {
   await Blog.deleteMany({});
   const blogObjects = helper.initialBlogs.map(blog => new Blog(blog));
   const promiseArray = blogObjects.map(blog => blog.save());
   await Promise.all(promiseArray);
+
+  const response = await api
+    .post("/api/login/")
+    .send({ username: "root", password: "secret" });
+
+  token = response.body.token;
 });
 
 describe("when there is initially some blogs saved", () => {
@@ -77,15 +85,12 @@ describe("viewing a specific blog", () => {
 });
 
 describe("adding a new blog post", () => {
-  test("a valid blog post can be added", async () => {
-    const newBlog = {
-      title: "Valid blog post",
-      author: "Egor",
-      url: "www.ya.ru"
-    };
+  test("a valid blog post can be added and if likes not set default to 0", async () => {
+    const newBlog = helper.validBlog;
 
     const savedBlog = await api
       .post("/api/blogs")
+      .set("Authorization", `bearer ${token}`)
       .send(newBlog)
       .expect(200)
       .expect("Content-Type", /application\/json/);
@@ -96,17 +101,26 @@ describe("adding a new blog post", () => {
     expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length + 1);
 
     const titles = blogsAtEnd.map(r => r.title);
-    expect(titles).toContain("Valid blog post");
+    expect(titles).toContain("How to be a fullstack master");
   });
 
-  test("fails with status code 400 if data invaild", async () => {
-    const newBlog = {
-      author: "Dan"
-    };
+  test("fails with status code 400 if data is invalid", async () => {
+    await api
+      .post("/api/blogs")
+      .set("Authorization", `bearer ${token}`)
+      .send({ author: "Egor" })
+      .expect(400);
 
     await api
       .post("/api/blogs")
-      .send(newBlog)
+      .set("Authorization", `bearer ${token}`)
+      .send({ url: "www.ya.ru" })
+      .expect(400);
+
+    await api
+      .post("/api/blogs")
+      .set("Authorization", `bearer ${token}`)
+      .send({ title: "Blog api" })
       .expect(400);
 
     const blogsAtEnd = await helper.blogsInDb();
@@ -151,22 +165,27 @@ describe("updating post", () => {
 
 describe("deletion of a post", () => {
   test("succeeds with status code 204 if id is valid", async () => {
-    const blogsAtStart = await helper.blogsInDb();
-    const blogsToDelete = blogsAtStart[0];
+    const newBlog = helper.validBlog;
+
+    const res = await api
+      .post("/api/blogs")
+      .set("Authorization", `bearer ${token}`)
+      .send(newBlog)
+      .expect(200)
+      .expect("Content-Type", /application\/json/);
+
+    const blogToDelete = res.body;
 
     await api
-      .delete(`/api/blogs/${blogsToDelete.id}`)
+      .delete(`/api/blogs/${blogToDelete.id}`)
+      .set("Authorization", `bearer ${token}`)
       .expect(204);
 
     const blogsAtEnd = await helper.blogsInDb();
-
-    expect(blogsAtEnd).toHaveLength(
-      helper.initialBlogs.length - 1
-    );
+    expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length);
 
     const titles = blogsAtEnd.map(r => r.title);
-
-    expect(titles).not.toContain(blogsToDelete.title);
+    expect(titles).not.toContain(blogToDelete.title);
   });
 });
 
